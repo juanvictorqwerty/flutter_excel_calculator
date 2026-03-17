@@ -100,27 +100,8 @@ class _ResultsPageState extends State<ResultsPage> {
           );
         }
       } else {
-        // On mobile/desktop, use file system
-        // Get save location
-        String? outputPath = await _getSavePath(format);
-
-        if (outputPath != null) {
-          // Ensure unique filename
-          outputPath = await _ensureUniqueFilename(outputPath);
-
-          // Write file
-          final file = File(outputPath);
-          await file.writeAsBytes(bytes);
-
-          if (context.mounted) {
-            // Show success dialog with options
-            await _showExportSuccessDialog(context, outputPath, format);
-          }
-        } else if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Export cancelled')),
-          );
-        }
+        // On mobile, use FilePicker with bytes to save
+        await _saveFileMobile(context, bytes, format);
       }
     } catch (e) {
       if (context.mounted) {
@@ -146,6 +127,32 @@ class _ResultsPageState extends State<ResultsPage> {
       type: FileType.custom,
       bytes: uint8List,
     );
+  }
+
+  /// Save file on mobile platform using FilePicker with bytes
+  Future<void> _saveFileMobile(BuildContext context, List<int> bytes, ExportFormat format) async {
+    final timestamp = _formatTimestamp(DateTime.now());
+    final fileName = 'GPA_Results_$timestamp.${format.extension}';
+
+    // Convert List<int> to Uint8List
+    final uint8List = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
+
+    // Use FilePicker with bytes for mobile platforms
+    final outputPath = await FilePicker.platform.saveFile(
+      dialogTitle: 'Save GPA Results as ${format.label}',
+      fileName: fileName,
+      allowedExtensions: [format.extension],
+      type: FileType.custom,
+      bytes: uint8List,
+    );
+
+    if (outputPath != null) {
+      await _showExportSuccessDialog(context, outputPath, format);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Export cancelled')),
+      );
+    }
   }
 
   /// Generate export bytes based on format

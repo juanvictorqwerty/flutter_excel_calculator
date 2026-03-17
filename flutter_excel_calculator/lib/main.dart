@@ -44,7 +44,7 @@ class HomePage extends StatelessWidget {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text('Excel Calculator'),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -108,7 +108,7 @@ class HomePage extends StatelessWidget {
               ),
             ),
             
-            const Spacer(),
+            const SizedBox(height: 16),
             
             // GPA Scale Info
             Card(
