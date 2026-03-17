@@ -1,9 +1,10 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path/path.dart' as path;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/student.dart';
 import '../services/excel_export_service.dart';
 import '../services/pdf_export_service.dart';
@@ -89,25 +90,37 @@ class _ResultsPageState extends State<ResultsPage> {
       // Generate file content based on format
       final bytes = await _generateExportBytes(format, classAverage);
 
-      // Get save location
-      String? outputPath = await _getSavePath(format);
-
-      if (outputPath != null) {
-        // Ensure unique filename
-        outputPath = await _ensureUniqueFilename(outputPath);
-
-        // Write file
-        final file = File(outputPath);
-        await file.writeAsBytes(bytes);
-
+      // Check if we're on web platform
+      if (kIsWeb) {
+        // On web, use FilePicker to save (triggers browser download)
+        await _saveFileWeb(bytes, format);
         if (context.mounted) {
-          // Show success dialog with options
-          await _showExportSuccessDialog(context, outputPath, format);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${format.label} file downloaded successfully')),
+          );
         }
-      } else if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Export cancelled')),
-        );
+      } else {
+        // On mobile/desktop, use file system
+        // Get save location
+        String? outputPath = await _getSavePath(format);
+
+        if (outputPath != null) {
+          // Ensure unique filename
+          outputPath = await _ensureUniqueFilename(outputPath);
+
+          // Write file
+          final file = File(outputPath);
+          await file.writeAsBytes(bytes);
+
+          if (context.mounted) {
+            // Show success dialog with options
+            await _showExportSuccessDialog(context, outputPath, format);
+          }
+        } else if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Export cancelled')),
+          );
+        }
       }
     } catch (e) {
       if (context.mounted) {
@@ -116,6 +129,23 @@ class _ResultsPageState extends State<ResultsPage> {
     } finally {
       setState(() => _isExporting = false);
     }
+  }
+
+  /// Save file on web platform using FilePicker
+  Future<void> _saveFileWeb(List<int> bytes, ExportFormat format) async {
+    final timestamp = _formatTimestamp(DateTime.now());
+    final fileName = 'GPA_Results_$timestamp.${format.extension}';
+
+    // Convert List<int> to Uint8List
+    final uint8List = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
+
+    await FilePicker.platform.saveFile(
+      dialogTitle: 'Save GPA Results as ${format.label}',
+      fileName: fileName,
+      allowedExtensions: [format.extension],
+      type: FileType.custom,
+      bytes: uint8List,
+    );
   }
 
   /// Generate export bytes based on format
@@ -153,19 +183,13 @@ class _ResultsPageState extends State<ResultsPage> {
     final timestamp = _formatTimestamp(DateTime.now());
     final defaultFileName = 'GPA_Results_$timestamp.${format.extension}';
 
-    if (Platform.isAndroid) {
-      return '/storage/emulated/0/Documents/$defaultFileName';
-    } else if (Platform.isIOS) {
-      final directory = await getApplicationDocumentsDirectory();
-      return '${directory.path}/$defaultFileName';
-    } else {
-      return await FilePicker.platform.saveFile(
-        dialogTitle: 'Save GPA Results as ${format.label}',
-        fileName: defaultFileName,
-        allowedExtensions: [format.extension],
-        type: FileType.custom,
-      );
-    }
+    // Use FilePicker for all platforms including web
+    return await FilePicker.platform.saveFile(
+      dialogTitle: 'Save GPA Results as ${format.label}',
+      fileName: defaultFileName,
+      allowedExtensions: [format.extension],
+      type: FileType.custom,
+    );
   }
 
   /// Ensure filename is unique by adding timestamp if needed

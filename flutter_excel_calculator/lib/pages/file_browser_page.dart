@@ -63,15 +63,18 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
       );
 
       if (result != null) {
-        final filePath = result.files.single.path;
         final fileName = result.files.single.name;
         final bytes = result.files.single.bytes;
 
-        if (filePath != null && bytes != null) {
+        // On web, filePath is always null for security reasons
+        // We can only rely on bytes
+        if (bytes != null) {
           setState(() {
             _selectedFileName = fileName;
           });
           _processExcelFile(bytes);
+        } else {
+          _showErrorDialog('Could not read file data');
         }
       }
     } catch (e) {
